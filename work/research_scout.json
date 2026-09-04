@@ -1,0 +1,181 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        16
+      ],
+      "id": "a4ce36d2-ff73-4c4e-aed8-7c5b7ec8699a",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://export.arxiv.org/api/query?search_query=cat:cs.AI&start=0&max_results=5",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        16,
+        16
+      ],
+      "id": "aa7d472f-395c-4dc1-8e21-425202c9536b",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data समात्ने र Text format मा रुपान्तरण गर्ने\nconst inputItem = $input.first().json;\nlet xmlString = \"\";\n\nif (typeof inputItem === 'string') {\n  xmlString = inputItem;\n} else if (inputItem.data) {\n  xmlString = typeof inputItem.data === 'string' ? inputItem.data : JSON.stringify(inputItem.data);\n} else if (inputItem.body) {\n  xmlString = typeof inputItem.body === 'string' ? inputItem.body : JSON.stringify(inputItem.body);\n} else {\n  xmlString = JSON.stringify(inputItem);\n}\n\n// Entry छ्ट्याउने\nconst entries = xmlString.split('<entry>').slice(1);\n\nif (entries.length === 0) {\n  return [{ json: { title: \"Error Fetching Paper\", summary: \"Please re-execute the HTTP Request node first.\", link: \"\" } }];\n}\n\nreturn entries.slice(0, 1).map(entry => {\n  const titleMatch = entry.match(/<title>([\\s\\S]*?)<\\/title>/);\n  const summaryMatch = entry.match(/<summary>([\\s\\S]*?)<\\/summary>/);\n  const linkMatch = entry.match(/<id>([\\s\\S]*?)<\\/id>/);\n\n  return {\n    json: {\n      title: titleMatch ? titleMatch[1].replace(/\\n/g, ' ').trim() : 'No Title',\n      summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, ' ').trim() : 'No Summary',\n      link: linkMatch ? linkMatch[1].trim() : ''\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        16
+      ],
+      "id": "c3e6e6be-1b4d-4d19-b607-23bc6a29c68b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Please provide a brief technical executive summary for this paper:\n\nTitle: {{ $json.title }}\nLink: {{ $json.link }}\nSummary: {{ $json.summary }}",
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        384,
+        16
+      ],
+      "id": "f907c7cd-80c9-4cd5-9a78-f7934569f519",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "modelName": "=models/gemini-3.6-flash\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        208
+      ],
+      "id": "014b0f70-247b-44a0-bb7e-ffcf640a7f6d",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "mFICGerI0Frj6Ug7",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "as3750141@gmail.com",
+        "subject": "ArXiv Paper AI Summary",
+        "message": "={{ $json.text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        16
+      ],
+      "id": "305ab889-03a7-4129-980c-b163da5150e3",
+      "name": "Send a message",
+      "webhookId": "9d077d28-cc9b-426e-84d4-808242dc18f0",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Fw0QI3PXI6l6zwSP",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ce4ac819-d3c7-4972-ab1e-f7fd25ba33e9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "19b56d7191d3d4d727d97b55461b17a7230630d643c6846b317061df6e610f27"
+  },
+  "nodeGroups": [],
+  "id": "NApe23cQxbEmG6sX",
+  "tags": []
+}
